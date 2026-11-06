@@ -235,12 +235,13 @@ body {
 
 .input-wrapper {
     flex: 1;
+    min-width: 0;
     display: flex;
     align-items: center;
     background: rgba(5, 15, 31, 0.85);
     border: 2px solid rgba(0, 180, 216, 0.35);
     border-radius: 14px;
-    padding: 4px 12px 4px 16px;
+    padding: 4px 10px 4px 14px;
     transition: all 0.25s ease;
 }
 
@@ -253,11 +254,14 @@ body {
     color: var(--aubasa-cyan);
     display: flex;
     align-items: center;
-    margin-right: 12px;
+    margin-right: 10px;
+    flex-shrink: 0;
 }
 
 .input-wrapper input {
     flex: 1;
+    min-width: 0;
+    width: 100%;
     background: transparent;
     border: none;
     outline: none;
@@ -320,20 +324,23 @@ body {
 }
 
 .btn-ghost {
-    background: rgba(255, 255, 255, 0.07);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    color: var(--aubasa-sky);
-    padding: 6px 12px;
-    border-radius: 8px;
-    font-size: 0.8rem;
-    font-weight: 600;
+    background: rgba(0, 180, 216, 0.16);
+    border: 1px solid rgba(0, 180, 216, 0.4);
+    color: #E0F2FE;
+    padding: 8px 14px;
+    border-radius: 9px;
+    font-size: 0.82rem;
+    font-weight: 700;
     cursor: pointer;
-    margin-left: 6px;
-    transition: background 0.2s;
+    margin-left: 8px;
+    flex-shrink: 0;
+    white-space: nowrap;
+    transition: background 0.2s, border-color 0.2s;
 }
 
 .btn-ghost:hover {
-    background: rgba(255, 255, 255, 0.15);
+    background: rgba(0, 180, 216, 0.3);
+    border-color: var(--aubasa-cyan);
 }
 
 .btn-ghost-sm {
@@ -1068,5 +1075,52 @@ body {
     }
     .btn-primary {
         padding: 14px;
+    }
+}
+
+@media (max-width: 640px) {
+    .container {
+        padding: 0 14px;
+    }
+    .search-card {
+        padding: 18px 16px;
+    }
+    .search-header h2 {
+        font-size: 1.25rem;
+    }
+    .search-header p {
+        font-size: 0.85rem;
+    }
+    .emergency-chip {
+        font-size: 0.75rem;
+        padding: 6px 10px;
+        width: 100%;
+        justify-content: center;
+    }
+    .input-wrapper {
+        padding: 4px 8px 4px 10px;
+    }
+    .input-icon {
+        margin-right: 8px;
+    }
+    .input-wrapper input {
+        font-size: 0.9rem;
+        padding: 10px 0;
+    }
+    .btn-ghost {
+        padding: 8px 12px;
+        font-size: 0.8rem;
+        margin-left: 6px;
+    }
+    .telemetry-grid, .form-row {
+        grid-template-columns: 1fr;
+    }
+    .highway-sign-box {
+        flex-direction: column;
+        align-items: stretch;
+        text-align: center;
+    }
+    .km-display-box {
+        text-align: center;
     }
 }

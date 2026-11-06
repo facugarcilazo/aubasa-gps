@@ -14,6 +14,8 @@ let lastLocateResult = null;
 let clientRoutesData = null;
 let clientCalibratedPolylines = null;
 let currentUserRole = null; // "operador" | "programador"
+let appInitialized = false;
+let sessionCheckTimer = null;
 
 const AUTH_CREDENTIALS = {
     programador: "cae123",
@@ -21,20 +23,39 @@ const AUTH_CREDENTIALS = {
 };
 
 document.addEventListener("DOMContentLoaded", async () => {
-    initAuth();
-    initMap();
     bindEvents();
-    await initDataAndRender();
+    await initAuth();
 });
 
-function initAuth() {
-    const savedRole = sessionStorage.getItem("aubasa_user_role");
-    if (savedRole === "programador" || savedRole === "operador") {
-        applyUserRole(savedRole);
-    } else {
-        document.getElementById("loginOverlay").classList.remove("hidden");
-    }
+async function verifyStoredSession() {
+    try {
+        const raw = localStorage.getItem("aubasa_auth_session");
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        if (!parsed || !parsed.role || !parsed.token) return null;
+        if (parsed.role !== "programador" && parsed.role !== "operador") return null;
 
+        // Check active token for this role in Firebase RTDB (single-device enforcement)
+        try {
+            const resp = await fetch(`${FIREBASE_RTDB_URL}/active_sessions/${parsed.role}.json`);
+            if (resp.ok) {
+                const remoteSession = await resp.json();
+                if (remoteSession && remoteSession.token && remoteSession.token !== parsed.token) {
+                    // Another device logged in with this role! Invalidate local session
+                    localStorage.removeItem("aubasa_auth_session");
+                    return { expiredByOtherDevice: true };
+                }
+            }
+        } catch (e) {
+            // If offline or Firebase unreachable, allow local persisted session
+        }
+        return { role: parsed.role, token: parsed.token };
+    } catch (e) {
+        return null;
+    }
+}
+
+async function initAuth() {
     const loginForm = document.getElementById("loginForm");
     const roleSelect = document.getElementById("loginRole");
     const passInput = document.getElementById("loginPassword");
@@ -45,7 +66,7 @@ function initAuth() {
         passInput.focus();
     });
 
-    loginForm.addEventListener("submit", (e) => {
+    loginForm.addEventListener("submit", async (e) => {
         e.preventDefault();
         const role = roleSelect.value;
         const pass = passInput.value.trim();
@@ -53,9 +74,26 @@ function initAuth() {
         if (AUTH_CREDENTIALS[role] && pass === AUTH_CREDENTIALS[role]) {
             errBox.classList.add("hidden");
             passInput.value = "";
-            sessionStorage.setItem("aubasa_user_role", role);
-            applyUserRole(role);
+            const newToken = `${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 10)}`;
+            const sessionObj = {
+                role,
+                token: newToken,
+                updated_at: new Date().toISOString()
+            };
+            localStorage.setItem("aubasa_auth_session", JSON.stringify(sessionObj));
+
+            // Register active device token in Firebase RTDB so previous devices are signed out
+            try {
+                await fetch(`${FIREBASE_RTDB_URL}/active_sessions/${role}.json`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(sessionObj)
+                });
+            } catch (err) {}
+
+            await unlockApplication(role);
         } else {
+            errBox.textContent = "Contraseña incorrecta para el usuario seleccionado.";
             errBox.classList.remove("hidden");
             passInput.select();
         }
@@ -64,18 +102,28 @@ function initAuth() {
     const logoutBtn = document.getElementById("logoutBtn");
     if (logoutBtn) {
         logoutBtn.addEventListener("click", () => {
-            sessionStorage.removeItem("aubasa_user_role");
-            currentUserRole = null;
-            document.getElementById("calibrateModal").classList.add("hidden");
-            document.getElementById("loginOverlay").classList.remove("hidden");
-            document.getElementById("loginPassword").focus();
+            lockApplication("Sesión cerrada correctamente.");
         });
+    }
+
+    // Check if user already has a valid persistent session on this device
+    const check = await verifyStoredSession();
+    if (check && check.role) {
+        await unlockApplication(check.role);
+    } else {
+        document.getElementById("appProtectedContainer").classList.add("hidden");
+        document.getElementById("loginOverlay").classList.remove("hidden");
+        if (check && check.expiredByOtherDevice) {
+            errBox.textContent = "Tu sesión se cerró porque se inició sesión en otro dispositivo.";
+            errBox.classList.remove("hidden");
+        }
     }
 }
 
-function applyUserRole(role) {
+async function unlockApplication(role) {
     currentUserRole = role;
     document.getElementById("loginOverlay").classList.add("hidden");
+    document.getElementById("appProtectedContainer").classList.remove("hidden");
 
     const isProgramador = role === "programador";
     const roleBadge = document.getElementById("userRoleBadge");
@@ -85,7 +133,6 @@ function applyUserRole(role) {
         roleBadge.classList.toggle("admin", isProgramador);
     }
 
-    // Show/hide programmer-only calibration buttons
     const progButtons = [
         document.getElementById("openCalibrateModalBtn"),
         document.getElementById("openCalibrateModalBtn2"),
@@ -95,9 +142,44 @@ function applyUserRole(role) {
         if (btn) btn.classList.toggle("hidden", !isProgramador);
     });
 
-    if (map) {
+    if (!appInitialized) {
+        appInitialized = true;
+        initMap();
+        await initDataAndRender();
+    } else if (map) {
         setTimeout(() => map.invalidateSize(), 150);
     }
+
+    // Periodically check if another device logged in with the same role
+    if (sessionCheckTimer) clearInterval(sessionCheckTimer);
+    sessionCheckTimer = setInterval(async () => {
+        if (!currentUserRole) return;
+        const status = await verifyStoredSession();
+        if (!status || status.expiredByOtherDevice) {
+            lockApplication("Se inició sesión en otro dispositivo. Vuelve a ingresar.");
+        }
+    }, 12000);
+}
+
+function lockApplication(reasonMsg = "") {
+    if (sessionCheckTimer) {
+        clearInterval(sessionCheckTimer);
+        sessionCheckTimer = null;
+    }
+    localStorage.removeItem("aubasa_auth_session");
+    currentUserRole = null;
+    document.getElementById("calibrateModal").classList.add("hidden");
+    document.getElementById("appProtectedContainer").classList.add("hidden");
+    document.getElementById("loginOverlay").classList.remove("hidden");
+
+    const errBox = document.getElementById("loginError");
+    if (reasonMsg) {
+        errBox.textContent = reasonMsg;
+        errBox.classList.remove("hidden");
+    } else {
+        errBox.classList.add("hidden");
+    }
+    document.getElementById("loginPassword").focus();
 }
 
 function initMap() {
@@ -868,6 +950,10 @@ function bindEvents() {
 }
 
 async function runLocateQuery(query) {
+    if (!currentUserRole) {
+        lockApplication("Debes iniciar sesión para utilizar el localizador.");
+        return;
+    }
     if (!query || !query.trim()) return;
     const errorAlert = document.getElementById("errorAlert");
     const errorText = document.getElementById("errorText");

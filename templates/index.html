@@ -71,6 +71,8 @@
     <div class="bg-glow bg-glow-2"></div>
     <div class="road-lines-bg"></div>
 
+    <!-- Protected Application Content (Hidden until authenticated) -->
+    <div id="appProtectedContainer" class="hidden">
     <!-- Top Navigation Bar -->
     <header class="navbar">
         <div class="container navbar-inner">
@@ -386,10 +388,11 @@
             </div>
         </div>
     </div>
+    </div> <!-- /#appProtectedContainer -->
 
     <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
     <!-- App JS -->
-    <script src="static/js/main.js?v=7"></script>
+    <script src="static/js/main.js?v=8"></script>
 </body>
 </html>

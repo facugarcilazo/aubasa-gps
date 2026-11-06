@@ -85,6 +85,63 @@ body {
     filter: drop-shadow(0 4px 14px rgba(0, 180, 216, 0.3));
 }
 
+.aubasa-lockup {
+    display: inline-flex;
+    align-items: center;
+    gap: 13px;
+    filter: drop-shadow(0 4px 14px rgba(0, 180, 216, 0.3));
+}
+
+.login-lockup {
+    margin-bottom: 4px;
+}
+
+.aubasa-icon-badge {
+    width: 56px;
+    height: 48px;
+    border-radius: 10px;
+    background: #02ACC3;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    box-shadow: 0 4px 12px rgba(2, 172, 195, 0.35);
+}
+
+.aubasa-icon-badge img {
+    width: 100%;
+    height: 86%;
+    object-fit: contain;
+    display: block;
+}
+
+.aubasa-lockup-text {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    text-align: left;
+    line-height: 1.05;
+}
+
+.aubasa-title {
+    font-family: 'Outfit', sans-serif;
+    font-weight: 800;
+    font-size: 1.85rem;
+    letter-spacing: 1.5px;
+    color: #FFFFFF;
+}
+
+.aubasa-caption {
+    font-family: 'Inter', sans-serif;
+    font-weight: 600;
+    font-size: 0.56rem;
+    letter-spacing: 0.9px;
+    color: #7DD3FC;
+    margin-top: 3px;
+    white-space: nowrap;
+}
+
 .brand-divider {
     width: 1px;
     height: 44px;

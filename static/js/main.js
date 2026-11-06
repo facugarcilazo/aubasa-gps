@@ -13,12 +13,92 @@ let snapLine = null;
 let lastLocateResult = null;
 let clientRoutesData = null;
 let clientCalibratedPolylines = null;
+let currentUserRole = null; // "operador" | "programador"
+
+const AUTH_CREDENTIALS = {
+    programador: "cae123",
+    operador: "cae1234"
+};
 
 document.addEventListener("DOMContentLoaded", async () => {
+    initAuth();
     initMap();
     bindEvents();
     await initDataAndRender();
 });
+
+function initAuth() {
+    const savedRole = sessionStorage.getItem("aubasa_user_role");
+    if (savedRole === "programador" || savedRole === "operador") {
+        applyUserRole(savedRole);
+    } else {
+        document.getElementById("loginOverlay").classList.remove("hidden");
+    }
+
+    const loginForm = document.getElementById("loginForm");
+    const roleSelect = document.getElementById("loginRole");
+    const passInput = document.getElementById("loginPassword");
+    const errBox = document.getElementById("loginError");
+
+    roleSelect.addEventListener("change", () => {
+        errBox.classList.add("hidden");
+        passInput.focus();
+    });
+
+    loginForm.addEventListener("submit", (e) => {
+        e.preventDefault();
+        const role = roleSelect.value;
+        const pass = passInput.value.trim();
+
+        if (AUTH_CREDENTIALS[role] && pass === AUTH_CREDENTIALS[role]) {
+            errBox.classList.add("hidden");
+            passInput.value = "";
+            sessionStorage.setItem("aubasa_user_role", role);
+            applyUserRole(role);
+        } else {
+            errBox.classList.remove("hidden");
+            passInput.select();
+        }
+    });
+
+    const logoutBtn = document.getElementById("logoutBtn");
+    if (logoutBtn) {
+        logoutBtn.addEventListener("click", () => {
+            sessionStorage.removeItem("aubasa_user_role");
+            currentUserRole = null;
+            document.getElementById("calibrateModal").classList.add("hidden");
+            document.getElementById("loginOverlay").classList.remove("hidden");
+            document.getElementById("loginPassword").focus();
+        });
+    }
+}
+
+function applyUserRole(role) {
+    currentUserRole = role;
+    document.getElementById("loginOverlay").classList.add("hidden");
+
+    const isProgramador = role === "programador";
+    const roleBadge = document.getElementById("userRoleBadge");
+    const roleText = document.getElementById("userRoleText");
+    if (roleBadge && roleText) {
+        roleText.textContent = isProgramador ? "Modo Programador / Editor" : "Modo Operador";
+        roleBadge.classList.toggle("admin", isProgramador);
+    }
+
+    // Show/hide programmer-only calibration buttons
+    const progButtons = [
+        document.getElementById("openCalibrateModalBtn"),
+        document.getElementById("openCalibrateModalBtn2"),
+        document.getElementById("useForCalibrationBtn")
+    ];
+    progButtons.forEach(btn => {
+        if (btn) btn.classList.toggle("hidden", !isProgramador);
+    });
+
+    if (map) {
+        setTimeout(() => map.invalidateSize(), 150);
+    }
+}
 
 function initMap() {
     map = L.map("corridorMap", {
@@ -899,6 +979,10 @@ function renderLocateResult(r) {
     });
 
     document.getElementById("openGmapsBtn").href = `https://www.google.com/maps?q=${r.input_lat},${r.input_lon}`;
+    const useCalBtn = document.getElementById("useForCalibrationBtn");
+    if (useCalBtn) {
+        useCalBtn.classList.toggle("hidden", currentUserRole !== "programador");
+    }
 
     if (userPinMarker) map.removeLayer(userPinMarker);
     if (snappedPinMarker) map.removeLayer(snappedPinMarker);

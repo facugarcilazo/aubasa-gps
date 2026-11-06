@@ -1066,6 +1066,99 @@ body {
     display: none !important;
 }
 
+/* Login Overlay Styles */
+.login-overlay {
+    position: fixed;
+    inset: 0;
+    background: radial-gradient(circle at 50% 25%, rgba(0, 180, 216, 0.22) 0%, rgba(4, 14, 29, 0.96) 70%), #051020;
+    backdrop-filter: blur(18px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2500;
+    padding: 20px;
+}
+
+.login-card {
+    width: 100%;
+    max-width: 430px;
+    padding: 34px 30px;
+    border-top: 4px solid var(--aubasa-cyan);
+    box-shadow: 0 25px 55px -12px rgba(0, 0, 0, 0.75);
+    animation: slideUpFade 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.login-brand {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    margin-bottom: 24px;
+}
+
+.aubasa-login-svg {
+    height: 62px;
+    width: auto;
+    filter: drop-shadow(0 4px 14px rgba(0, 180, 216, 0.35));
+}
+
+.login-brand h2 {
+    font-family: 'Outfit', sans-serif;
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: #FFFFFF;
+    margin-top: 6px;
+}
+
+.login-brand p {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin-top: 4px;
+}
+
+.login-form {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.login-submit-btn {
+    width: 100%;
+    padding: 13px;
+    margin-top: 6px;
+    font-size: 1rem;
+}
+
+.login-error {
+    background: rgba(239, 68, 68, 0.16);
+    border: 1px solid rgba(239, 68, 68, 0.45);
+    color: #FCA5A5;
+    padding: 10px 12px;
+    border-radius: 10px;
+    font-size: 0.83rem;
+    text-align: center;
+    font-weight: 600;
+}
+
+.role-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 13px;
+    border-radius: 999px;
+    background: rgba(0, 180, 216, 0.14);
+    border: 1px solid rgba(0, 180, 216, 0.38);
+    color: #E0F2FE;
+    font-size: 0.78rem;
+    font-weight: 700;
+}
+
+.role-pill.admin {
+    background: rgba(255, 183, 3, 0.16);
+    border-color: rgba(255, 183, 3, 0.45);
+    color: var(--aubasa-gold);
+}
+
 @media (max-width: 980px) {
     .dashboard-grid, .bottom-grid {
         grid-template-columns: 1fr;

@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+venv/
+.env
+serviceAccountKey.json
+data/search_history.json

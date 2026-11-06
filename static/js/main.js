@@ -19,11 +19,15 @@ let sessionCheckTimer = null;
 
 const AUTH_CREDENTIALS = {
     programador: "cae123",
-    operador: "cae1234"
+    operador1: "cae1234",
+    operador2: "cae1234",
+    operador3: "cae1234"
 };
-const MAX_CONCURRENT_SESSIONS = {
-    programador: 1,
-    operador: 3
+const USER_LABELS = {
+    programador: "Programador / Editor",
+    operador1: "Operador 1",
+    operador2: "Operador 2",
+    operador3: "Operador 3"
 };
 
 document.addEventListener("DOMContentLoaded", async () => {
@@ -37,21 +41,16 @@ async function verifyStoredSession() {
         if (!raw) return null;
         const parsed = JSON.parse(raw);
         if (!parsed || !parsed.role || !parsed.token) return null;
-        if (parsed.role !== "programador" && parsed.role !== "operador") return null;
+        if (!AUTH_CREDENTIALS[parsed.role]) return null;
 
-        // Check active token list for this role in Firebase RTDB
+        // Check active token for this specific user in Firebase RTDB
         try {
             const resp = await fetch(`${FIREBASE_RTDB_URL}/active_sessions/${parsed.role}.json`);
             if (resp.ok) {
                 const remoteData = await resp.json();
-                if (remoteData) {
-                    const tokens = Array.isArray(remoteData.tokens)
-                        ? remoteData.tokens
-                        : (remoteData.token ? [remoteData.token] : []);
-                    if (tokens.length > 0 && !tokens.includes(parsed.token)) {
-                        localStorage.removeItem("aubasa_auth_session");
-                        return { expiredByOtherDevice: true };
-                    }
+                if (remoteData && remoteData.token && remoteData.token !== parsed.token) {
+                    localStorage.removeItem("aubasa_auth_session");
+                    return { expiredByOtherDevice: true };
                 }
             }
         } catch (e) {
@@ -83,42 +82,21 @@ async function initAuth() {
             errBox.classList.add("hidden");
             passInput.value = "";
             const newToken = `${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 10)}`;
-            const maxAllowed = MAX_CONCURRENT_SESSIONS[role] || 1;
-
-            // Read existing active tokens for this role and keep up to (maxAllowed - 1) + newToken
-            let updatedTokens = [newToken];
-            try {
-                const curResp = await fetch(`${FIREBASE_RTDB_URL}/active_sessions/${role}.json`);
-                if (curResp.ok) {
-                    const curData = await curResp.json();
-                    if (curData) {
-                        const prevTokens = Array.isArray(curData.tokens)
-                            ? curData.tokens
-                            : (curData.token ? [curData.token] : []);
-                        updatedTokens = [...prevTokens.slice(-(maxAllowed - 1)), newToken];
-                        if (maxAllowed === 1) updatedTokens = [newToken];
-                    }
-                }
-            } catch (err) {}
 
             const sessionObj = {
                 role,
+                label: USER_LABELS[role] || role,
                 token: newToken,
                 updated_at: new Date().toISOString()
             };
             localStorage.setItem("aubasa_auth_session", JSON.stringify(sessionObj));
 
-            // Save active tokens list in Firebase RTDB
+            // Save active token for this specific user in Firebase RTDB
             try {
                 await fetch(`${FIREBASE_RTDB_URL}/active_sessions/${role}.json`, {
                     method: "PUT",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        role,
-                        tokens: updatedTokens,
-                        max_devices: maxAllowed,
-                        updated_at: sessionObj.updated_at
-                    })
+                    body: JSON.stringify(sessionObj)
                 });
             } catch (err) {}
 
@@ -146,7 +124,7 @@ async function initAuth() {
         document.getElementById("appProtectedContainer").classList.add("hidden");
         document.getElementById("loginOverlay").classList.remove("hidden");
         if (check && check.expiredByOtherDevice) {
-            errBox.textContent = "Tu sesión se cerró porque se inició sesión en otro dispositivo.";
+            errBox.textContent = "Tu sesión se cerró porque este usuario inició sesión en otro dispositivo.";
             errBox.classList.remove("hidden");
         }
     }
@@ -161,7 +139,7 @@ async function unlockApplication(role) {
     const roleBadge = document.getElementById("userRoleBadge");
     const roleText = document.getElementById("userRoleText");
     if (roleBadge && roleText) {
-        roleText.textContent = isProgramador ? "Modo Programador / Editor" : "Modo Operador";
+        roleText.textContent = USER_LABELS[role] || role;
         roleBadge.classList.toggle("admin", isProgramador);
     }
 
@@ -208,16 +186,9 @@ async function removeCurrentDeviceTokenFromFirebase() {
         const curResp = await fetch(`${FIREBASE_RTDB_URL}/active_sessions/${parsed.role}.json`);
         if (curResp.ok) {
             const curData = await curResp.json();
-            if (curData && Array.isArray(curData.tokens)) {
-                const filtered = curData.tokens.filter(t => t !== parsed.token);
+            if (curData && curData.token === parsed.token) {
                 await fetch(`${FIREBASE_RTDB_URL}/active_sessions/${parsed.role}.json`, {
-                    method: "PUT",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        ...curData,
-                        tokens: filtered,
-                        updated_at: new Date().toISOString()
-                    })
+                    method: "DELETE"
                 });
             }
         }

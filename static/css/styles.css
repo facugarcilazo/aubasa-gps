@@ -1144,6 +1144,12 @@ body {
     font-weight: 600;
 }
 
+.user-session-box {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
 .role-pill {
     display: inline-flex;
     align-items: center;
@@ -1153,7 +1159,7 @@ body {
     background: rgba(0, 180, 216, 0.14);
     border: 1px solid rgba(0, 180, 216, 0.38);
     color: #E0F2FE;
-    font-size: 0.78rem;
+    font-size: 0.8rem;
     font-weight: 700;
 }
 

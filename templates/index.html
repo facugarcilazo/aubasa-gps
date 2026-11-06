@@ -11,7 +11,7 @@
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
     <!-- App CSS -->
-    <link rel="stylesheet" href="static/css/styles.css?v=5">
+    <link rel="stylesheet" href="static/css/styles.css?v=6">
 </head>
 <body>
     <!-- Full-Screen Login Overlay -->
@@ -45,7 +45,9 @@
                 <div class="form-group">
                     <label for="loginRole">Usuario / Rol Operativo</label>
                     <select id="loginRole" required>
-                        <option value="operador">Operador</option>
+                        <option value="operador1">Operador 1</option>
+                        <option value="operador2">Operador 2</option>
+                        <option value="operador3">Operador 3</option>
                         <option value="programador">Programador / Editor</option>
                     </select>
                 </div>
@@ -113,18 +115,23 @@
                     <span class="db-dot"></span>
                     <span id="firebaseBadgeText">Cargando base...</span>
                 </div>
-                <div id="userRoleBadge" class="role-pill">
-                    <span id="userRoleText">Operador</span>
-                </div>
                 <button type="button" class="btn-secondary" id="openCalibrateModalBtn">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
                         <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
                     </svg>
                     Calibrar / Sumar Links KM
                 </button>
-                <button type="button" class="btn-ghost" id="logoutBtn" title="Cambiar de usuario o cerrar sesión">
-                    Salir
-                </button>
+                <div class="user-session-box">
+                    <div id="userRoleBadge" class="role-pill">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3">
+                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+                        </svg>
+                        <span id="userRoleText">Operador 1</span>
+                    </div>
+                    <button type="button" class="btn-ghost" id="logoutBtn" title="Cambiar de usuario o cerrar sesión">
+                        Salir
+                    </button>
+                </div>
             </div>
         </div>
     </header>
@@ -393,6 +400,6 @@
     <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
     <!-- App JS -->
-    <script src="static/js/main.js?v=10"></script>
+    <script src="static/js/main.js?v=11"></script>
 </body>
 </html>

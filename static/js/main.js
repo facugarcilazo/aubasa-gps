@@ -157,7 +157,7 @@ async function parseGoogleMapsClient(rawInput) {
     const urlMatch = text.match(/(https?:\/\/[^\s]+)/);
     if (urlMatch) url = urlMatch[1];
 
-    // If short link on static host (GitHub Pages), resolve via unshorten.me API (CORS=* enabled) + local/known cache
+    // If short link on static host (GitHub Pages), resolve via multi-stage CORS-enabled unshorteners + Firebase cache
     if (/goo\.gl|maps\.app\.goo\.gl|bit\.ly|tinyurl\.com/i.test(url)) {
         // 1. Check if this link matches any already-verified control point in clientRoutesData
         if (clientRoutesData) {
@@ -170,20 +170,77 @@ async function parseGoogleMapsClient(rawInput) {
             }
         }
 
-        // 2. Resolve via unshorten.me JSON API (supports CORS=* from GitHub Pages & smartphones)
+        // 2. Check Firebase RTDB cache of previously resolved short links
+        const urlHashKey = url.replace(/[^a-zA-Z0-9_-]/g, "_");
         try {
-            const unResp = await fetch(`https://unshorten.me/json/${encodeURIComponent(url)}`);
-            if (unResp.ok) {
-                const unData = await unResp.json();
-                if (unData && unData.resolved_url) {
-                    url = unData.resolved_url;
+            const cacheResp = await fetch(`${FIREBASE_RTDB_URL}/resolved_links/${urlHashKey}.json`);
+            if (cacheResp.ok) {
+                const cached = await cacheResp.json();
+                if (cached && typeof cached.lat === "number" && typeof cached.lon === "number") {
+                    return { lat: cached.lat, lon: cached.lon, resolvedUrl: cached.resolvedUrl || url };
+                }
+            }
+        } catch (e) {}
+
+        // 3. Primary Resolver: r.jina.ai (CORS=*, fast, returns exact "URL Source:" or "Final URL:")
+        let resolvedCandidate = null;
+        try {
+            const jinaResp = await fetch(`https://r.jina.ai/${url}`);
+            if (jinaResp.ok) {
+                const jinaText = await jinaResp.text();
+                const srcMatch = jinaText.match(/(?:URL Source|Final URL):\s*(https?:\/\/[^\s\r\n]+)/i);
+                if (srcMatch && srcMatch[1]) {
+                    resolvedCandidate = srcMatch[1];
+                } else {
+                    const gmapMatch = jinaText.match(/https?:\/\/(?:www\.)?google\.com\/maps\/[^\s"'\r\n<>]+/i);
+                    if (gmapMatch) resolvedCandidate = gmapMatch[0];
                 }
             }
         } catch (e) {
-            console.warn("unshorten.me fallback error:", e);
+            console.warn("Jina resolver warning:", e);
         }
 
-        // 3. Unwrap Google consent wrapper if present (e.g. consent.google.com/ml?continue=https%3A%2F%2Fwww.google.com%2Fmaps...)
+        // 4. Secondary Resolver: unshorten.me JSON API (NOTE: must pass raw url in path, NOT encodeURIComponent!)
+        if (!resolvedCandidate) {
+            try {
+                const unResp = await fetch(`https://unshorten.me/json/${url}`);
+                if (unResp.ok) {
+                    const unData = await unResp.json();
+                    if (unData && unData.resolved_url) {
+                        resolvedCandidate = unData.resolved_url;
+                    }
+                }
+            } catch (e) {
+                console.warn("unshorten.me warning:", e);
+            }
+        }
+
+        // 5. Tertiary Resolver: api.cors.lol HTML body inspection
+        if (!resolvedCandidate) {
+            try {
+                const lolResp = await fetch(`https://api.cors.lol/?url=${encodeURIComponent(url)}`);
+                if (lolResp.ok) {
+                    const htmlText = await lolResp.text();
+                    const gmapMatch = htmlText.match(/https?:\/\/(?:www\.)?google\.com\/maps\/[^\s"'\r\n<>\\]+/i);
+                    if (gmapMatch) {
+                        resolvedCandidate = gmapMatch[0];
+                    } else {
+                        const coordInHtml = htmlText.match(/(-3[3-9]\.\d{4,})\s*[,;+]\s*(-5[6-9]\.\d{4,})/);
+                        if (coordInHtml) {
+                            resolvedCandidate = `https://www.google.com/maps/search/${coordInHtml[1]},${coordInHtml[2]}`;
+                        }
+                    }
+                }
+            } catch (e) {
+                console.warn("cors.lol warning:", e);
+            }
+        }
+
+        if (resolvedCandidate) {
+            url = resolvedCandidate;
+        }
+
+        // 6. Unwrap Google consent wrapper if present (e.g. consent.google.com/ml?continue=https%3A%2F%2Fwww.google.com%2Fmaps...)
         if (url.includes("continue=")) {
             try {
                 const uObj = new URL(url);
@@ -193,24 +250,46 @@ async function parseGoogleMapsClient(rawInput) {
         }
     }
 
+    const originalShortUrl = url;
     // Decode up to twice in case of nested URL encoding
     const decoded = decodeURIComponent(decodeURIComponent(url));
+    let parsedCoord = null;
     const mSearch = decoded.match(/(?:search\/|q=|ll=|query=)(-?\d{1,2}\.\d+)\s*[,+]\s*\+?(-?\d{1,3}\.\d+)/);
-    if (mSearch) return { lat: parseFloat(mSearch[1]), lon: parseFloat(mSearch[2]), resolvedUrl: url };
+    if (mSearch) {
+        parsedCoord = { lat: parseFloat(mSearch[1]), lon: parseFloat(mSearch[2]), resolvedUrl: url };
+    } else {
+        const isStreetView = decoded.includes(",3a,") || decoded.includes("a,75y") || decoded.includes("!1e1!");
+        const mAt = decoded.match(/@(-?\d{1,2}\.\d+),(-?\d{1,3}\.\d+)/);
+        const m3dAll = [...decoded.matchAll(/!3d(-?\d{1,2}\.\d+)!4d(-?\d{1,3}\.\d+)/g)];
 
-    const isStreetView = decoded.includes(",3a,") || decoded.includes("a,75y") || decoded.includes("!1e1!");
-    const mAt = decoded.match(/@(-?\d{1,2}\.\d+),(-?\d{1,3}\.\d+)/);
-    const m3dAll = [...decoded.matchAll(/!3d(-?\d{1,2}\.\d+)!4d(-?\d{1,3}\.\d+)/g)];
-
-    if (isStreetView && mAt) return { lat: parseFloat(mAt[1]), lon: parseFloat(mAt[2]), resolvedUrl: url };
-    if (m3dAll.length > 0) {
-        const last = m3dAll[m3dAll.length - 1];
-        return { lat: parseFloat(last[1]), lon: parseFloat(last[2]), resolvedUrl: url };
+        if (isStreetView && mAt) {
+            parsedCoord = { lat: parseFloat(mAt[1]), lon: parseFloat(mAt[2]), resolvedUrl: url };
+        } else if (m3dAll.length > 0) {
+            const last = m3dAll[m3dAll.length - 1];
+            parsedCoord = { lat: parseFloat(last[1]), lon: parseFloat(last[2]), resolvedUrl: url };
+        } else if (mAt) {
+            parsedCoord = { lat: parseFloat(mAt[1]), lon: parseFloat(mAt[2]), resolvedUrl: url };
+        } else {
+            const mAny = decoded.match(/(-3[3-9]\.\d+)\s*[,;/\s+]\s*(-5[6-9]\.\d+)/);
+            if (mAny) parsedCoord = { lat: parseFloat(mAny[1]), lon: parseFloat(mAny[2]), resolvedUrl: url };
+        }
     }
-    if (mAt) return { lat: parseFloat(mAt[1]), lon: parseFloat(mAt[2]), resolvedUrl: url };
 
-    const mAny = decoded.match(/(-3[3-9]\.\d+)\s*[,;/\s+]\s*(-5[6-9]\.\d+)/);
-    if (mAny) return { lat: parseFloat(mAny[1]), lon: parseFloat(mAny[2]), resolvedUrl: url };
+    if (parsedCoord) {
+        // Save resolved short link to Firebase RTDB cache so future lookups are instant
+        try {
+            const rawShortMatch = text.match(/(https?:\/\/[^\s]+)/);
+            if (rawShortMatch && /goo\.gl|maps\.app\.goo\.gl/i.test(rawShortMatch[1])) {
+                const hashKey = rawShortMatch[1].replace(/[^a-zA-Z0-9_-]/g, "_");
+                fetch(`${FIREBASE_RTDB_URL}/resolved_links/${hashKey}.json`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(parsedCoord)
+                }).catch(() => {});
+            }
+        } catch (e) {}
+        return parsedCoord;
+    }
 
     throw new Error("No se pudieron extraer las coordenadas del link corto en modo estático. Abre el link y copia la URL completa o las coordenadas.");
 }

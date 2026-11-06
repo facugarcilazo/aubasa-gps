@@ -168,11 +168,17 @@ async function unlockApplication(role) {
     const progButtons = [
         document.getElementById("openCalibrateModalBtn"),
         document.getElementById("openCalibrateModalBtn2"),
-        document.getElementById("useForCalibrationBtn")
+        document.getElementById("useForCalibrationBtn"),
+        document.getElementById("calibrationStatusPanel")
     ];
     progButtons.forEach(btn => {
         if (btn) btn.classList.toggle("hidden", !isProgramador);
     });
+
+    const bottomGrid = document.getElementById("bottomGridSection");
+    if (bottomGrid) {
+        bottomGrid.classList.toggle("single-col", !isProgramador);
+    }
 
     if (!appInitialized) {
         appInitialized = true;

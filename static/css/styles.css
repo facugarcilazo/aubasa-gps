@@ -828,6 +828,10 @@ body {
     gap: 24px;
 }
 
+.bottom-grid.single-col {
+    grid-template-columns: 1fr;
+}
+
 .status-panel, .history-panel {
     padding: 22px 24px;
 }

@@ -157,25 +157,44 @@ async function parseGoogleMapsClient(rawInput) {
     const urlMatch = text.match(/(https?:\/\/[^\s]+)/);
     if (urlMatch) url = urlMatch[1];
 
-    // If short link on static host, try unshortening via public CORS proxy or inform user
-    if (/goo\.gl|maps\.app\.goo\.gl|bit\.ly/i.test(url)) {
+    // If short link on static host (GitHub Pages), resolve via unshorten.me API (CORS=* enabled) + local/known cache
+    if (/goo\.gl|maps\.app\.goo\.gl|bit\.ly|tinyurl\.com/i.test(url)) {
+        // 1. Check if this link matches any already-verified control point in clientRoutesData
+        if (clientRoutesData) {
+            for (const r of Object.values(clientRoutesData)) {
+                for (const cp of (r.control_points || [])) {
+                    if (cp.link && cp.link.trim() === url.trim()) {
+                        return { lat: Number(cp.lat), lon: Number(cp.lon), resolvedUrl: url };
+                    }
+                }
+            }
+        }
+
+        // 2. Resolve via unshorten.me JSON API (supports CORS=* from GitHub Pages & smartphones)
         try {
-            const proxyResp = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
-            if (proxyResp.ok) {
-                const pData = await proxyResp.json();
-                if (pData && pData.status && pData.status.url) {
-                    url = pData.status.url;
-                } else if (pData && pData.contents) {
-                    const metaMatch = pData.contents.match(/https:\/\/www\.google\.com\/maps\/[^\s"']+/);
-                    if (metaMatch) url = metaMatch[0];
+            const unResp = await fetch(`https://unshorten.me/json/${encodeURIComponent(url)}`);
+            if (unResp.ok) {
+                const unData = await unResp.json();
+                if (unData && unData.resolved_url) {
+                    url = unData.resolved_url;
                 }
             }
         } catch (e) {
-            console.warn("Short URL proxy fallback:", e);
+            console.warn("unshorten.me fallback error:", e);
+        }
+
+        // 3. Unwrap Google consent wrapper if present (e.g. consent.google.com/ml?continue=https%3A%2F%2Fwww.google.com%2Fmaps...)
+        if (url.includes("continue=")) {
+            try {
+                const uObj = new URL(url);
+                const cont = uObj.searchParams.get("continue");
+                if (cont) url = decodeURIComponent(cont);
+            } catch (e) {}
         }
     }
 
-    const decoded = decodeURIComponent(url);
+    // Decode up to twice in case of nested URL encoding
+    const decoded = decodeURIComponent(decodeURIComponent(url));
     const mSearch = decoded.match(/(?:search\/|q=|ll=|query=)(-?\d{1,2}\.\d+)\s*[,+]\s*\+?(-?\d{1,3}\.\d+)/);
     if (mSearch) return { lat: parseFloat(mSearch[1]), lon: parseFloat(mSearch[2]), resolvedUrl: url };
 

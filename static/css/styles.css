@@ -1169,6 +1169,27 @@ body {
     color: var(--aubasa-gold);
 }
 
+.login-footer {
+    margin-top: 22px;
+    padding-top: 14px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    text-align: center;
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    letter-spacing: 0.03em;
+}
+
+.app-footer {
+    margin-top: 12px;
+    padding: 20px 0 32px;
+    border-top: 1px solid var(--border-subtle);
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    font-weight: 500;
+    letter-spacing: 0.03em;
+}
+
 @media (max-width: 980px) {
     .dashboard-grid, .bottom-grid {
         grid-template-columns: 1fr;

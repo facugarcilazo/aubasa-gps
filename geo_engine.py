@@ -53,8 +53,22 @@ def parse_google_maps_input(raw_input):
     decoded_url = urllib.parse.unquote(resolved_url)
 
     # 4. Priority extraction patterns on decoded_url:
-    # Pattern A: /search/-36.323511,+-57.695559 or ?q=-36.323511,-57.695559 or &ll=-36.323511,-57.695559
-    m_search = re.search(r'(?:search/|q=|ll=|query=)(-?\d{1,2}\.\d+)\s*[,+]\s*\+?(-?\d{1,3}\.\d+)', decoded_url)
+    # Pattern A0: Degrees Minutes Seconds (e.g. 37°06'04.2"S 56°55'04.0"W)
+    m_dms = re.search(
+        r"(\d{1,2})\s*°\s*(\d{1,2})\s*['’]\s*(\d{1,2}(?:\.\d+)?)\s*[\"”]\s*([NSns])\s*[,;+\s]+\s*(\d{1,3})\s*°\s*(\d{1,2})\s*['’]\s*(\d{1,2}(?:\.\d+)?)\s*[\"”]\s*([EWewOo])",
+        decoded_url
+    )
+    if m_dms:
+        lat_d = int(m_dms.group(1)) + int(m_dms.group(2)) / 60.0 + float(m_dms.group(3)) / 3600.0
+        if m_dms.group(4).upper() == "S":
+            lat_d = -lat_d
+        lon_d = int(m_dms.group(5)) + int(m_dms.group(6)) / 60.0 + float(m_dms.group(7)) / 3600.0
+        if m_dms.group(8).upper() in ("W", "O"):
+            lon_d = -lon_d
+        return round(lat_d, 6), round(lon_d, 6), resolved_url
+
+    # Pattern A: /search/-36.323511,+-57.695559 or /place/-37.101170,+-56.917769 or ?q=-36.323511,-57.695559
+    m_search = re.search(r'(?:search/|place/|q=|ll=|query=)(-?\d{1,2}\.\d+)\s*[,+]\s*\+?(-?\d{1,3}\.\d+)', decoded_url)
     if m_search:
         return float(m_search.group(1)), float(m_search.group(2)), resolved_url
 

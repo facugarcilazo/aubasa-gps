@@ -182,18 +182,31 @@ async function parseGoogleMapsClient(rawInput) {
             }
         } catch (e) {}
 
-        // 3. Primary Resolver: r.jina.ai (CORS=*, fast, returns exact "URL Source:" or "Final URL:")
+        // 3. Primary Resolver: r.jina.ai (CORS=*, fast, returns either DMS Title "37°06'04.2\"S 56°55'04.0\"W" or "Final URL: https://...")
         let resolvedCandidate = null;
         try {
             const jinaResp = await fetch(`https://r.jina.ai/${url}`);
             if (jinaResp.ok) {
                 const jinaText = await jinaResp.text();
-                const srcMatch = jinaText.match(/(?:URL Source|Final URL):\s*(https?:\/\/[^\s\r\n]+)/i);
-                if (srcMatch && srcMatch[1]) {
-                    resolvedCandidate = srcMatch[1];
+
+                // Check if Jina Title has exact DMS coordinates (e.g. Title: 37°06'04.2"S 56°55'04.0"W)
+                const dmsMatch = jinaText.match(/(\d{1,2})\s*°\s*(\d{1,2})\s*['’]\s*(\d{1,2}(?:\.\d+)?)\s*["”]\s*([NSns])\s*[,;\s]+\s*(\d{1,3})\s*°\s*(\d{1,2})\s*['’]\s*(\d{1,2}(?:\.\d+)?)\s*["”]\s*([EWewOo])/);
+                if (dmsMatch) {
+                    let latDms = parseInt(dmsMatch[1], 10) + parseInt(dmsMatch[2], 10) / 60.0 + parseFloat(dmsMatch[3]) / 3600.0;
+                    if (dmsMatch[4].toUpperCase() === "S") latDms = -latDms;
+                    let lonDms = parseInt(dmsMatch[5], 10) + parseInt(dmsMatch[6], 10) / 60.0 + parseFloat(dmsMatch[7]) / 3600.0;
+                    if (dmsMatch[8].toUpperCase() === "W" || dmsMatch[8].toUpperCase() === "O") lonDms = -lonDms;
+                    resolvedCandidate = `https://www.google.com/maps/search/${latDms.toFixed(6)},${lonDms.toFixed(6)}`;
                 } else {
                     const gmapMatch = jinaText.match(/https?:\/\/(?:www\.)?google\.com\/maps\/[^\s"'\r\n<>]+/i);
-                    if (gmapMatch) resolvedCandidate = gmapMatch[0];
+                    if (gmapMatch) {
+                        resolvedCandidate = gmapMatch[0];
+                    } else {
+                        const decInJina = jinaText.match(/(-3[3-9]\.\d{4,})\s*[,;+\s]\s*\+?(-5[6-9]\.\d{4,})/);
+                        if (decInJina) {
+                            resolvedCandidate = `https://www.google.com/maps/search/${decInJina[1]},${decInJina[2]}`;
+                        }
+                    }
                 }
             }
         } catch (e) {
@@ -254,10 +267,20 @@ async function parseGoogleMapsClient(rawInput) {
     // Decode up to twice in case of nested URL encoding
     const decoded = decodeURIComponent(decodeURIComponent(url));
     let parsedCoord = null;
-    const mSearch = decoded.match(/(?:search\/|q=|ll=|query=)(-?\d{1,2}\.\d+)\s*[,+]\s*\+?(-?\d{1,3}\.\d+)/);
+    const mSearch = decoded.match(/(?:search\/|place\/|q=|ll=|query=)(-?\d{1,2}\.\d+)\s*[,+]\s*\+?(-?\d{1,3}\.\d+)/);
     if (mSearch) {
         parsedCoord = { lat: parseFloat(mSearch[1]), lon: parseFloat(mSearch[2]), resolvedUrl: url };
     } else {
+        const dmsDirect = decoded.match(/(\d{1,2})\s*°\s*(\d{1,2})\s*['’]\s*(\d{1,2}(?:\.\d+)?)\s*["”]\s*([NSns])\s*[,;+\s]+\s*(\d{1,3})\s*°\s*(\d{1,2})\s*['’]\s*(\d{1,2}(?:\.\d+)?)\s*["”]\s*([EWewOo])/);
+        if (dmsDirect) {
+            let latDms = parseInt(dmsDirect[1], 10) + parseInt(dmsDirect[2], 10) / 60.0 + parseFloat(dmsDirect[3]) / 3600.0;
+            if (dmsDirect[4].toUpperCase() === "S") latDms = -latDms;
+            let lonDms = parseInt(dmsDirect[5], 10) + parseInt(dmsDirect[6], 10) / 60.0 + parseFloat(dmsDirect[7]) / 3600.0;
+            if (dmsDirect[8].toUpperCase() === "W" || dmsDirect[8].toUpperCase() === "O") lonDms = -lonDms;
+            parsedCoord = { lat: Number(latDms.toFixed(6)), lon: Number(lonDms.toFixed(6)), resolvedUrl: url };
+        }
+    }
+    if (!parsedCoord) {
         const isStreetView = decoded.includes(",3a,") || decoded.includes("a,75y") || decoded.includes("!1e1!");
         const mAt = decoded.match(/@(-?\d{1,2}\.\d+),(-?\d{1,3}\.\d+)/);
         const m3dAll = [...decoded.matchAll(/!3d(-?\d{1,2}\.\d+)!4d(-?\d{1,3}\.\d+)/g)];

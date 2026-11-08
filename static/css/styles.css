@@ -273,7 +273,8 @@ body {
 .search-header p {
     color: var(--text-muted);
     font-size: 0.95rem;
-    max-width: 780px;
+    max-width: none;
+    white-space: nowrap;
     line-height: 1.45;
 }
 
@@ -1258,6 +1259,9 @@ body {
 @media (max-width: 980px) {
     .dashboard-grid, .bottom-grid {
         grid-template-columns: 1fr;
+    }
+    .search-header p {
+        white-space: normal;
     }
     .search-form {
         flex-direction: column;
